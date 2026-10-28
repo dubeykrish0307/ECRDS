@@ -95,7 +95,6 @@ Data: [Statlog (German Credit Data)](https://archive.ics.uci.edu/dataset/144/sta
 - [ ] The demo app trains on all 1,000 rows and then scores applicants from those same rows, so the probabilities shown are in-sample. Score a held-out set in the app instead.
 - [ ] Retrain without the sex/marital-status attribute and compare accuracy, cost and the reject-rate gap.
 - [ ] Tune the decision bands against the 5:1 cost matrix instead of fixed 0.3 / 0.6 cut-offs.
-- [ ] Stop committing `__pycache__/` files.
 
 ---
 
