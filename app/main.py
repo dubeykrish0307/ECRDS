@@ -8,6 +8,7 @@ sys.path.append(str(PROJECT_ROOT))
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -111,14 +112,12 @@ st.markdown(f"### Decision: **{decision}**")
 
 st.subheader("Global Risk Drivers")
 plot_global_feature_importance(shap_values, X)
+st.pyplot(plt.gcf(), clear_figure=True)
 
 st.subheader("Local Explanation")
 plot_local_explanation(explainer, shap_values, X, index)
+st.pyplot(plt.gcf(), clear_figure=True)
 
-
-st.subheader("Decision Justification")
-report = generate_decision_report(X, shap_values, index, threshold=0.02)
-st.text(report)
 
 st.subheader("Decision Justification")
 report = generate_decision_report(X, shap_values, index, threshold=0.02)
