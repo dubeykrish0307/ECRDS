@@ -1,179 +1,102 @@
 # Explainable Credit Risk Decision System
 
-An end-to-end **explainable machine learning decision system** for credit risk assessment, built with a strong focus on **transparency, auditability, and responsible AI**.
+A credit-scoring app that does not stop at a probability. For each loan applicant it gives a decision (approve, manual review or reject), the SHAP reasons behind it, a fairness check across age, sex and nationality groups, and a timestamped audit report.
 
-This project goes beyond prediction accuracy and demonstrates how machine learning can be used to support **real business decisions** in **regulated domains** such as banking and finance.
-
----
-
-## 🚀 Live Application
-
-🔗 **Public Demo (Streamlit App)**  
-👉 <https://explainable-credit-risk-decision-system.streamlit.app/>
-
-The deployed application allows users to:
-- Inspect individual loan applicants
-- View default risk probabilities
-- See global and local explanations (SHAP)
-- Generate audit-ready decision reports
+**Live demo:** [explainable-credit-risk-decision-system.streamlit.app](https://explainable-credit-risk-decision-system.streamlit.app/)
 
 ---
 
-## 📌 Problem Statement
+## Results
 
-In financial institutions, machine learning models are often **distrusted** because:
+German Credit dataset (UCI, 1,000 applicants, 30 % defaults). Held-out 20 % test split (200 applicants, stratified, `random_state=42`). 20 raw attributes become 42 model features after encoding.
 
-- Predictions are hard to explain
-- Decisions cannot be justified to humans
-- Regulatory and ethical risks are ignored
-- No audit trail exists for automated decisions
+| Model | Accuracy | ROC-AUC | 5-fold CV ROC-AUC | Recall on defaults | Cost per applicant* |
+|---|---|---|---|---|---|
+| **Logistic Regression** (balanced) | **0.75** | **0.81** | 0.77 ± 0.02 | **0.78** (47 of 60) | **0.51** |
+| Random Forest (300 trees, balanced) | 0.73 | 0.79 | 0.77 ± 0.03 | 0.58 (35 of 60) | 0.77 |
+| Approve everyone (baseline) | 0.70 | — | — | 0.00 | 1.50 |
 
-**Goal of this project:**  
-Build a system that not only predicts credit default risk, but clearly explains **why a decision is made**, evaluates **bias**, and leaves a **persistent audit trail**.
+\*The dataset's own cost matrix: approving a borrower who defaults costs 5, rejecting a good borrower costs 1.
 
----
+**Why the simpler model is the one in the app.** The Random Forest is not more accurate here, and it misses 25 of 60 defaulters against 13 for Logistic Regression. With a 5:1 cost of errors that makes it about 50 % more expensive per applicant. Logistic Regression is also the one an auditor can read directly.
 
-## 🧠 Decision Context (Business Logic)
+**The decision bands hold up.** Default rate inside each band on the test set:
 
-Model outputs are mapped to real-world business actions:
+| Band | Probability | Applicants | Actually defaulted |
+|---|---|---|---|
+| APPROVE | < 0.30 | 78 | 10.3 % |
+| MANUAL REVIEW | 0.30 – 0.60 | 52 | 23.1 % |
+| REJECT | ≥ 0.60 | 70 | 57.1 % |
 
-| Default Risk Probability | Decision |
-|--------------------------|----------|
-| < 30%                    | APPROVE |
-| 30% – 60%                | MANUAL REVIEW |
-| > 60%                    | REJECT |
-
-This mirrors how credit decisions are handled in real financial institutions.
+**Strongest risk drivers** (mean absolute SHAP value on the test set): no checking account, critical credit history, the "single male" status code, existing credits repaid on time, and the instalment rate.
 
 ---
 
-## 🏗️ System Capabilities
+## Fairness check
 
-- Interpretable baseline model (Logistic Regression)
-- High-performance comparison model (Random Forest)
-- Feature engineering with business justification
-- Global and local explainability using SHAP
-- Human-readable decision justifications
-- Bias & fairness analysis on sensitive attributes
-- Audit-ready decision report generation
-- Interactive Streamlit web application
-- Public cloud deployment
+Measured before any mitigation, on the same 200 test applicants:
+
+| Group | n | Rejected | Approved | Actual default rate |
+|---|---|---|---|---|
+| Under 25 | 39 | 48.7 % | 25.6 % | 48.7 % |
+| 25 and older | 161 | 31.7 % | 42.2 % | 25.5 % |
+| Female | 61 | 41.0 % | 29.5 % | 32.8 % |
+| Male | 139 | 32.4 % | 43.2 % | 28.8 % |
+| Foreign worker | 194 | 35.6 % | 37.6 % | 30.4 % |
+| Not foreign worker | 6 | 16.7 % | 83.3 % | 16.7 % |
+
+What this shows:
+- For **age**, the higher reject rate for under-25s matches a higher real default rate in this data.
+- For **sex**, women are rejected 8.6 points more often while their default rate is only 4 points higher, and a sex/marital-status code is one of the five strongest drivers. That gap is worth acting on (see next steps).
+- **Foreign worker** cannot be judged from 6 applicants in the "no" group.
 
 ---
 
-## 🧩 Architecture Overview
-```
-explainable-credit-risk-decision-system/
-├── app/
-│ └── main.py # Streamlit application
-│
-├── src/
-│ ├── features/ # Feature engineering pipeline
-│ ├── models/ # Training & model comparison
-│ ├── explainability/ # SHAP explainers
-│ ├── ethics/ # Bias & fairness analysis
-│ └── reports/ # Decision report generator
-│
-├── data/
-│ └── raw/ # Dataset (ignored in git)
-│
-├── reports/
-│ └── decision_reports/ # Generated audit artifacts
-│
-├── requirements.txt
-└── README.md
+## How it works
+
+```mermaid
+flowchart LR
+    D[German Credit data] --> F[Feature engineering<br/>ordinal + one-hot, 42 features]
+    F --> M[Logistic Regression<br/>class-balanced, scaled]
+    M --> P[Default probability]
+    P --> B{Decision band}
+    B --> A[APPROVE / REVIEW / REJECT]
+    M --> S[SHAP LinearExplainer]
+    S --> G[Global drivers]
+    S --> L[Per-applicant reasons]
+    A --> R[Audit report .txt<br/>probability, decision, reasons, UTC time]
+    L --> R
 ```
 
-## 🔍 Explainability (Not a Black Box)
-
-### Global Explanations
-- Identify which features generally drive default risk
-- Useful for policy review and stakeholder communication
-
-### Local Explanations
-- Feature-level contribution for individual applicants
-- Explains *why* a specific decision was made
-- Supports human review and accountability
-
-SHAP (Shapley Additive Explanations) is used to provide consistent, theoretically grounded explanations.
+- `src/features/` encodes ordered categories (employment length, savings) as ordinals and the rest as one-hot.
+- `src/models/model_comparison.py` trains both models on the same split.
+- `src/explainability/` builds SHAP global and per-applicant explanations.
+- `src/ethics/bias_analysis.py` compares observed and predicted risk by group.
+- `src/reports/` writes a timestamped decision report for each reviewed applicant to `reports/decision_reports/`.
 
 ---
 
-## ⚖️ Responsible AI & Fairness
+## Run it
 
-The system explicitly evaluates bias across sensitive attributes such as:
+```bash
+git clone https://github.com/dubeykrish0307/ECRDS.git
+cd ECRDS
+python -m venv venv && source venv/bin/activate    # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run app/main.py
+```
 
-- Age
-- Gender proxies
-- Nationality proxies
-
-Bias is **measured before mitigation**, aligning with EU and German regulatory thinking.  
-This avoids hiding bias and instead enables **informed governance decisions**.
-
----
-
-## 🧾 Audit-Ready Decision Reports
-
-Each decision can generate a persistent, timestamped report containing:
-
-- Default risk probability
-- Final decision (Approve / Review / Reject)
-- Feature-level justification
-- UTC timestamp
-- Notes for audit and compliance
-
-These reports are stored under:
-This ensures decisions are **traceable, reviewable, and auditable**.
+Data: [Statlog (German Credit Data)](https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data), UCI Machine Learning Repository. The raw files are included in `data/raw/`.
 
 ---
 
-## 📊 Model Comparison & Trade-offs
+## Known limitations and next steps
 
-Two models are evaluated under identical conditions:
-
-| Model | Strength | Trade-off |
-|------|---------|-----------|
-| Logistic Regression | High interpretability, strong recall for defaults | Slightly lower accuracy |
-| Random Forest | Higher raw accuracy | Lower recall for risky applicants, higher governance cost |
-
-**Key insight:**  
-Higher accuracy does not necessarily lead to better business outcomes when error costs are asymmetric.
+- [ ] The demo app trains on all 1,000 rows and then scores applicants from those same rows, so the probabilities shown are in-sample. Score a held-out set in the app instead.
+- [ ] Retrain without the sex/marital-status attribute and compare accuracy, cost and the reject-rate gap.
+- [ ] Tune the decision bands against the 5:1 cost matrix instead of fixed 0.3 / 0.6 cut-offs.
+- [ ] Remove the duplicated "Decision Justification" section in the app and stop committing `__pycache__/`.
 
 ---
 
-## 📦 Dataset
-
-This project uses the **German Credit Dataset** from the UCI Machine Learning Repository.
-
-- Source: https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
-- License: Public / Research Use
-- Raw data is intentionally excluded from version control
-
-## ▶️ Run Locally
-1. Create virtual environment
-   ```
-    python -m venv venv
-    source venv/bin/activate        # Linux/Mac
-    venv\Scripts\activate           # Windows
-   ```
-
-2. Install dependencies
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. Run the application
-   ```
-   streamlit run app/main.py
-   ```
-
-## 🌍 Deployment
-The application is deployed on Streamlit Community Cloud to make explainable decision logic accessible to non-technical stakeholders without unnecessary infrastructure complexity.
-
-### 👤 Author
-Krish Dubey
-Bachelor’s Student — Computer Science
-Focus: Machine Learning Systems, Explainable AI, Responsible Decision-Making
-
-### 📄 License
-This project is intended for educational and demonstration purposes.
+**Krish Dubey**, B.Sc. Computer Science student at SRH Munich · [LinkedIn](https://www.linkedin.com/in/dubeykrish) · [GitHub](https://github.com/dubeykrish0307)
